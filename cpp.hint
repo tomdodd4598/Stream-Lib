@@ -1,0 +1,15 @@
+#define EXPAND(...)
+
+#define FORWARD(X)
+
+#define STD_ITERATOR(TYPE, MEMBER, ...)
+
+#define STD_METHODS(TYPE, ...)
+
+#define NOT_EQUAL(TYPE)
+
+#define STREAM_BEGIN_T(TYPE)
+
+#define STREAM_END_T(TYPE)
+
+#define STREAM_METHODS
