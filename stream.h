@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iterator>
 #include <utility>
+#include <vector>
 #include <type_traits>
 
 #define EXPAND(...) __VA_ARGS__
@@ -43,7 +44,12 @@ auto end() {\
 \
 template<typename F>\
 auto map(F&& function) {\
-	return Map<std::remove_cvref_t<decltype(*this)>, F>(std::move(*this), FORWARD(function));\
+	return MapStream<std::remove_cvref_t<decltype(*this)>, F>(std::move(*this), FORWARD(function));\
+}\
+\
+template<typename P>\
+auto filter(P&& predicate) {\
+	return FilterStream<std::remove_cvref_t<decltype(*this)>, P>(std::move(*this), FORWARD(predicate));\
 }\
 \
 template<typename F>\
@@ -54,21 +60,35 @@ void for_each(F&& function) {\
 		function(*first);\
 	}\
 }\
+\
+template<typename T>\
+std::vector<T> to_vector() {\
+	std::vector<T> vec;\
+	for_each([&vec](auto&& x) { vec.push_back(FORWARD(x)); });\
+	return vec;\
+}\
 
 namespace dodd {
 
 	template<typename ITERATOR>
-	class Iter;
+	class RefStream;
+
+	template<typename ITERABLE>
+	class ValueStream;
 
 	template<typename STREAM, typename FUNCTION>
-	class Map;
+	class MapStream;
+
+	template<typename STREAM, typename PREDICATE>
+	class FilterStream;
 
 	template<typename ITERATOR>
-	class Iter {
+	class RefStream {
 		ITERATOR first, last;
 
 	public:
-		Iter(ITERATOR begin, ITERATOR end) : first{ begin }, last{ end } {}
+		template<typename F, typename L>
+		RefStream(F&& first, L&& last) : first{ FORWARD(first) }, last{ FORWARD(last) } {}
 
 		auto cbegin() {
 			return first;
@@ -81,8 +101,27 @@ namespace dodd {
 		STREAM_METHODS;
 	};
 
+	template<typename ITERABLE>
+	class ValueStream {
+		ITERABLE iterable;
+
+	public:
+		template<typename I>
+		ValueStream(I&& iterable) : iterable{ FORWARD(iterable) } {}
+
+		auto cbegin() {
+			return std::cbegin(iterable);
+		}
+
+		auto cend() {
+			return std::cend(iterable);
+		}
+
+		STREAM_METHODS;
+	};
+
 	template<typename STREAM, typename FUNCTION>
-	class Map {
+	class MapStream {
 		STREAM stream;
 		FUNCTION function;
 
@@ -105,7 +144,7 @@ namespace dodd {
 				++inner;
 				return *this;
 			}
-			
+
 			auto operator*() const {
 				return (*f)(*inner);
 			}
@@ -113,7 +152,7 @@ namespace dodd {
 
 	public:
 		template<typename S, typename F>
-		Map(S&& stream, F&& function) : stream{ FORWARD(stream) }, function{ FORWARD(function) } {}
+		MapStream(S&& stream, F&& function) : stream{ FORWARD(stream) }, function{ FORWARD(function) } {}
 
 		auto cbegin() {
 			return Iterator(stream.cbegin(), &function);
@@ -126,19 +165,83 @@ namespace dodd {
 		STREAM_METHODS;
 	};
 
+	template<typename STREAM, typename PREDICATE>
+	class FilterStream {
+		STREAM stream;
+		PREDICATE predicate;
+
+		struct Iterator {
+			using Begin = STREAM_BEGIN_T(STREAM);
+			using End = STREAM_END_T(STREAM);
+
+			Begin inner;
+			End end;
+			PREDICATE* p;
+
+			void filter() {
+				while (inner != end && !(*p)(*inner)) {
+					++inner;
+				}
+			}
+
+			Iterator(Begin inner, End end, PREDICATE* p) : inner{ inner }, end{ end }, p{ p } {
+				filter();
+			}
+
+			bool operator==(End other) const {
+				return inner == other;
+			}
+
+			NOT_EQUAL(End);
+
+			Iterator& operator++() {
+				++inner;
+				filter();
+				return *this;
+			}
+			
+			auto operator*() const {
+				return *inner;
+			}
+		};
+
+	public:
+		template<typename S, typename P>
+		FilterStream(S&& stream, P&& predicate) : stream{ FORWARD(stream) }, predicate{ FORWARD(predicate) } {}
+
+		auto cbegin() {
+			return Iterator(stream.cbegin(), stream.cend(), &predicate);
+		}
+
+		auto cend() {
+			return stream.cend();
+		}
+
+		STREAM_METHODS;
+	};
+
 	template<typename ITERATOR>
 	auto stream(ITERATOR begin, ITERATOR end) {
-		return Iter<ITERATOR>(begin, end);
+		return RefStream<ITERATOR>(begin, end);
 	}
 
 	template<typename ITERABLE>
 	auto stream(ITERABLE const& iterable) {
 		return stream(std::cbegin(iterable), std::cend(iterable));
 	}
+
+	template<typename ITERABLE, std::enable_if_t<!std::is_reference<ITERABLE>::value, int> = 0>
+	auto stream(ITERABLE&& iterable) {
+		return ValueStream<ITERABLE>(FORWARD(iterable));
+	}
 }
 
-STD_METHODS(Iter<ITERATOR>, typename ITERATOR)
+STD_METHODS(RefStream<ITERATOR>, typename ITERATOR)
 
-STD_METHODS(Map<EXPAND(STREAM, FUNCTION)>, typename STREAM, typename FUNCTION)
+STD_METHODS(ValueStream<ITERABLE>, typename ITERABLE)
+
+STD_METHODS(MapStream<EXPAND(STREAM, FUNCTION)>, typename STREAM, typename FUNCTION)
+
+STD_METHODS(FilterStream<EXPAND(STREAM, PREDICATE)>, typename STREAM, typename PREDICATE)
 
 #endif
