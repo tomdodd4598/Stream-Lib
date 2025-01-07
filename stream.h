@@ -3,6 +3,11 @@
 
 #include <algorithm>
 #include <iterator>
+#include <map>
+#include <optional>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include <type_traits>
@@ -67,6 +72,34 @@ std::vector<T> to_vector() {\
 	for_each([&vec](auto&& x) { vec.push_back(FORWARD(x)); });\
 	return vec;\
 }\
+\
+template<typename T>\
+std::set<T> to_set() {\
+	std::set<T> set;\
+	for_each([&set](auto&& x) { set.insert(FORWARD(x)); });\
+	return set;\
+}\
+\
+template<typename T>\
+std::unordered_set<T> to_unordered_set() {\
+	std::unordered_set<T> set;\
+	for_each([&set](auto&& x) { set.insert(FORWARD(x)); });\
+	return set;\
+}\
+\
+template<typename K, typename V>\
+std::map<K, V> to_map() {\
+	std::map<K, V> map;\
+	for_each([&map](auto&& x) { map[FORWARD(x).first] = FORWARD(x).second; });\
+	return map;\
+}\
+\
+template<typename K, typename V>\
+std::unordered_map<K, V> to_unordered_map() {\
+	std::unordered_map<K, V> map;\
+	for_each([&map](auto&& x) { map[FORWARD(x).first] = FORWARD(x).second; });\
+	return map;\
+}\
 
 namespace dodd {
 
@@ -88,7 +121,7 @@ namespace dodd {
 
 	public:
 		template<typename F, typename L>
-		RefStream(F&& first, L&& last) : first{ FORWARD(first) }, last{ FORWARD(last) } {}
+		RefStream(F&& first, L&& last) : first{FORWARD(first)}, last{FORWARD(last)} {}
 
 		auto cbegin() {
 			return first;
@@ -107,7 +140,7 @@ namespace dodd {
 
 	public:
 		template<typename I>
-		ValueStream(I&& iterable) : iterable{ FORWARD(iterable) } {}
+		ValueStream(I&& iterable) : iterable{FORWARD(iterable)} {}
 
 		auto cbegin() {
 			return std::cbegin(iterable);
@@ -132,7 +165,7 @@ namespace dodd {
 			Begin inner;
 			FUNCTION* f;
 
-			Iterator(Begin inner, FUNCTION* f) : inner{ inner }, f{ f } {}
+			Iterator(Begin inner, FUNCTION* f) : inner{inner}, f{f} {}
 
 			bool operator==(End other) const {
 				return inner == other;
@@ -152,7 +185,7 @@ namespace dodd {
 
 	public:
 		template<typename S, typename F>
-		MapStream(S&& stream, F&& function) : stream{ FORWARD(stream) }, function{ FORWARD(function) } {}
+		MapStream(S&& stream, F&& function) : stream{FORWARD(stream)}, function{FORWARD(function)} {}
 
 		auto cbegin() {
 			return Iterator(stream.cbegin(), &function);
@@ -184,7 +217,7 @@ namespace dodd {
 				}
 			}
 
-			Iterator(Begin inner, End end, PREDICATE* p) : inner{ inner }, end{ end }, p{ p } {
+			Iterator(Begin inner, End end, PREDICATE* p) : inner{inner}, end{end}, p{p} {
 				filter();
 			}
 
@@ -207,7 +240,7 @@ namespace dodd {
 
 	public:
 		template<typename S, typename P>
-		FilterStream(S&& stream, P&& predicate) : stream{ FORWARD(stream) }, predicate{ FORWARD(predicate) } {}
+		FilterStream(S&& stream, P&& predicate) : stream{FORWARD(stream)}, predicate{FORWARD(predicate)} {}
 
 		auto cbegin() {
 			return Iterator(stream.cbegin(), stream.cend(), &predicate);
